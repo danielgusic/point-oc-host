@@ -1,0 +1,22 @@
+[package]
+name = "point-oc-host"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# Path dep on the AN-encoding wasmtime fork so we can call `Config::an_encoding`.
+# (crates.io wasmtime v45 has no such method.)
+wasmtime = { git = "https://github.com/danielgusic/wasmtime-an/" }
+# Reuse the same SCI crate the guest uses, to build/parse telegrams on the host side.
+sci-rs = { git = "https://github.com/ctiedt/rasta-rs", version = "0.1.0" }
+anyhow = "1"
+
+# Keep this crate out of the wasmtime fork's workspace.
+[workspace]
+
+# Optimized build that still carries line tables, so a sampling profiler
+# (samply) can attribute time to host + wasmtime-runtime functions by name.
+[profile.profiling]
+inherits = "release"
+debug = "line-tables-only"
+strip = false
