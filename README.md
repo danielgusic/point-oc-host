@@ -85,3 +85,6 @@ $WT objdump --funcs all /tmp/point-oc.cwasm     # with per-function headers
 $WT explore ...point-oc.wasm -o explore.html    # interactive wasm <-> native
 $WT compile -C an-encoding=y --emit-clif /tmp/clif ...  # Cranelift IR
 ```
+
+## Example flamegraphs
+You can find some flamegraphs from my system comparing AN-off vs. AN-on in example_flamegraphs/. 
