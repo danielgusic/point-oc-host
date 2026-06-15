@@ -23,11 +23,17 @@ output suppressed) on the AN-encoding `wasmtime-an` fork.
 
 ## Throughput (clean runs, no profiler attached)
 
+Measured against `wasmtime-an` commit `fea3d57` (see "Fork update" below).
+
 | Configuration            | debug guest | release guest |
 |--------------------------|------------:|--------------:|
-| AN-encoding **off**      | 355,294 tel/s (~2.8 µs) | **1,368,415 tel/s (~0.73 µs)** |
-| AN-encoding **on**       |   2,466 tel/s (~405 µs) |     **2,574 tel/s (~389 µs)** |
-| **AN slowdown**          | **~144×**   | **~532×**     |
+| AN-encoding **off**      | 371,054 tel/s (~2.7 µs) | **1,425,483 tel/s (~0.70 µs)** |
+| AN-encoding **on**       |   2,585 tel/s (~387 µs) |     **2,694 tel/s (~371 µs)** |
+| **AN slowdown**          | **~144×**   | **~529×**     |
+
+(All four numbers are within run-to-run noise of the previous fork commit
+`7ece22d` — 355,294 / 1,368,415 / 2,466 / 2,574 tel/s. See "Fork update" for why
+the update didn't move them.)
 
 (For reference, AN-on with the identity constant `A=1` runs at ~2,502 tel/s —
 just as slow as `A=65521`. The cost is *not* the AN arithmetic, but the
@@ -50,8 +56,8 @@ guest:
 
 | half of the cross-check loop | debug | release |
 |------------------------------|------:|--------:|
-| compare body (`an_cross_check_parts`: unaligned `u32` load, `A*raw` multiply, compare) | ~56% | 53.9% |
-| iterator (`split_at_checked` / `ChunksExact<u8>::next` + the 8-byte shadow load) | ~44% | 42.2% |
+| compare body (`an_cross_check_parts`: unaligned `u32` load, `A*raw` multiply, compare) | ~56% | 54.5% |
+| iterator (`split_at_checked` / `ChunksExact<u8>::next` + the 8-byte shadow load) | ~44% | 41.6% |
 
 Both halves are the **comparison**. The "sync"/re-encode side
 (`an_sweep_whole_dirty` / `an_encode_full_memory_from_raw`) is **~0%**, because the
@@ -83,6 +89,30 @@ times per telegram, so this O(memory-size) sweep per crossing dominates
 everything. The AN arithmetic itself is cheap; the per-boundary full-memory sweep
 is the bottleneck (confirmed by the identical `A=1` result and by it being
 unchanged across guest builds).
+
+## Fork update (`7ece22d` → `fea3d57`)
+
+These graphs were regenerated after a `wasmtime-an` update. The headline numbers
+did not move, and here is why:
+
+- **What changed:** only the cranelift translator
+  (`crates/cranelift/src/translate/{an_helpers,code_translator}.rs`). The update
+  adds an inline `emit_an_codeword_validity_check` (a `value % A == 0` codeword
+  test that traps on a non-codeword) on the encoded operand at *every* op-internal
+  decode site in the JIT-compiled guest — `and`/`or`/`xor`, shifts/rotates,
+  `clz`/`ctz`/`popcnt`, sign-extends, subword/unaligned `i32.store`, and the
+  `div_u`/`rem_u` operands. Per the changelog this closes a hole where a corrupted
+  non-codeword could be silently floor-divided into a valid-looking *wrong* value.
+- **What did NOT change:** the host-boundary sweep. `an_check_host_boundary`,
+  `an_cross_check_memory`, and `an_cross_check_parts` are byte-for-byte identical
+  between the two commits.
+- **Why throughput is unchanged:** the added work is *guest-side* inline
+  instrumentation, but on this workload the guest is dwarfed by the per-boundary
+  full-memory sweep (~96% of AN-on time). A few extra `% A` checks inside the wasm
+  execution are invisible next to an O(linear-memory) cross-check that runs on
+  every boundary crossing. AN-off is unaffected because these checks are only
+  emitted when AN-encoding is enabled. The flamegraph shape is therefore
+  effectively the same as before the update.
 
 ## Note on `[unknown]` frames
 
@@ -133,3 +163,5 @@ cargo flamegraph --profile profiling -c "record -F 997 --call-graph fp -g" \
 cargo flamegraph --profile profiling -c "record -F 997 --call-graph fp -g" \
   -o example_flamegraphs/an-on-release.svg   -- "$REL" --an --bench 20000    --perfmap
 ```
+
+Or use the provided script `make_flamegraphs.sh` 
