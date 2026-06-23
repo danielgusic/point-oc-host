@@ -15,12 +15,11 @@
 //! to unwind the loop, and treat that one trap as a clean shutdown.
 //!
 //! Usage:
-//!   point-oc-host [WASM_PATH] [--an] [--an-constant N] [--an-check] [--bench N]
+//!   point-oc-host [WASM_PATH] [--an] [--an-constant N] [--bench N]
 //!
 //!   WASM_PATH       defaults to the debug build of the sibling crate
 //!   --an            enable AN-encoding (Config::an_encoding)
 //!   --an-constant N override the AN constant A
-//!   --an-check      enable the load-side validity check
 //!   --bench N       benchmark mode: cycle the scripted conversation until N
 //!                   telegrams have been served, suppress per-telegram output,
 //!                   and report wall time + telegrams/sec for the guest run
@@ -64,7 +63,6 @@ fn main() -> Result<()> {
     let mut wasm_path = DEFAULT_WASM.to_string();
     let mut an = false;
     let mut an_constant: Option<u64> = None;
-    let mut an_check = false;
     let mut bench: Option<usize> = None;
     let mut perfmap = false;
 
@@ -72,7 +70,6 @@ fn main() -> Result<()> {
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--an" => an = true,
-            "--an-check" => an_check = true,
             "--an-constant" => {
                 an_constant = Some(
                     args.next()
@@ -90,7 +87,7 @@ fn main() -> Result<()> {
             "--perfmap" => perfmap = true,
             "-h" | "--help" => {
                 println!(
-                    "usage: point-oc-host [WASM_PATH] [--an] [--an-constant N] [--an-check] [--bench N] [--perfmap]"
+                    "usage: point-oc-host [WASM_PATH] [--an] [--an-constant N] [--bench N] [--perfmap]"
                 );
                 return Ok(());
             }
@@ -104,9 +101,6 @@ fn main() -> Result<()> {
         if let Some(a) = an_constant {
             config.an_constant(a);
         }
-        if an_check {
-            config.an_load_validity_check(true);
-        }
     }
     if perfmap {
         // Emit /tmp/perf-<pid>.map so an external sampler (samply) can
@@ -115,10 +109,9 @@ fn main() -> Result<()> {
     }
 
     println!(
-        "host: loading {wasm_path}\nhost: AN-encoding {}{}{}\n",
+        "host: loading {wasm_path}\nhost: AN-encoding {}{}\n",
         if an { "ON" } else { "off" },
         an_constant.map(|a| format!(" (A={a})")).unwrap_or_default(),
-        if an && an_check { " +load-check" } else { "" },
     );
 
     let engine = Engine::new(&config)?;

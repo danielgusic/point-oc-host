@@ -19,7 +19,7 @@ OUT="$HERE/example_flamegraphs"
 # AN-off is ~100-500x faster, so it needs far more telegrams than AN-on.
 BENCH_OFF_DEBUG=4000000
 BENCH_OFF_RELEASE=14000000
-BENCH_ON=20000
+BENCH_ON=4000000
 
 PERF_ARGS="record -F 997 --call-graph fp -g"
 
